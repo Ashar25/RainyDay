@@ -195,11 +195,11 @@ def catalogAlt_irregular(temparray,trimmask,xlen,ylen,maskheight,maskwidth,rains
 
 
 @jit(nopython=True, fastmath =  True)  
-def catalogNumba_irregular(temparray,trimmask,xlen,ylen,maskheight,maskwidth,rainsum,domainmask,stride=1):
+def catalogNumba_irregular(temparray,trimmask,xlen,ylen,maskheight,maskwidth,rainsum,domainmask):
     rainsum[:]=0.
     halfheight=int32(np.ceil(maskheight/2))
     halfwidth=int32(np.ceil(maskwidth/2))
-    for i in range(0,ylen*xlen,stride):
+    for i in range(0,ylen*xlen):
         y=i//xlen
         x=i-y*xlen
         #print x,y
@@ -214,9 +214,9 @@ def catalogNumba_irregular(temparray,trimmask,xlen,ylen,maskheight,maskwidth,rai
 
 
 @jit(nopython=True)
-def catalogNumba(temparray,trimmask,xlen,ylen,maskheight,maskwidth,rainsum,stride=1):
+def catalogNumba(temparray,trimmask,xlen,ylen,maskheight,maskwidth,rainsum):
     rainsum[:]=0.
-    for i in range(0,(ylen)*(xlen),stride):
+    for i in range(0,(ylen)*(xlen)):
         y=i//xlen
         x=i-y*xlen
         #print x,y
@@ -846,8 +846,6 @@ def findsubbox(inarea,variables,fname):
     infile=xr.open_dataset(fname)
     latmin,latmax,longmin,longmax = inarea[2],inarea[3],inarea[0],inarea[1]
     rain_name,lat_name,lon_name = variables.values()
-    if max(infile[lon_name].values) > 180: # convert from positive degrees west to negative degrees west
-        infile[lon_name] = infile[lon_name] - 360 
     outrain=infile[rain_name].sel(**{lat_name:slice(latmin,latmax)},\
                                               **{lon_name:slice(longmin,longmax)})
     outextent[2], outextent[3],outextent[0], outextent[1]=outrain[lat_name][0],outrain[lat_name][-1],\
