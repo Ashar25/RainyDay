@@ -47,7 +47,6 @@ import cartopy.mpl.ticker as cticker
 import matplotlib.patches as patches
 #from numba import njit, prange
 numbacheck=True
-import pandas as pd
 
 # plotting stuff, really only needed for diagnostic plots
 #matplotlib.use('Agg')
@@ -135,6 +134,7 @@ try:
 except FileNotFoundError:
     print("You either didn't specify a parameter file, or it doesn't exist on the source path given.")
 #%%
+
 
 # #==============================================================================
 # # USER DEFINED VARIABLES
@@ -795,38 +795,6 @@ try:
     timeseparation=cardinfo["TIMESEPARATION"]
 except Exception:
     timeseparation=0.
-    
-    
-# Added 2/6/2024 by DBW
-# This reads in a daily-scale probability of probabilities that will be used when resampling storms
-try:
-    seasonfile=cardinfo["SEASONALSAMPLING"]
-    seasonalsampling=True
-    seasonaldata=np.genfromtxt(seasonfile, delimiter=',',skip_header=1)
-    seasonaldoy=np.array(seasonaldata[:,0],dtype='int16')
-    seasonaldate=np.zeros((len(seasonaldoy)),dtype='datetime64[D]')
-    for i in range(0,len(seasonaldate)):
-        seasonaldate[i]=RainyDay.day_of_year_to_datetime(1776,seasonaldoy[i])
-    if RainyDay.is_monotonic(seasonaldata[:,1]):
-        # if data is a cdf already
-        seasonalcdf=seasonaldata[:,1]/np.max(seasonaldata[:,1])
-    else:
-        # if data is a PMF
-        seasonalcdf=np.cumsum(seasonaldata[:,2])/np.max(seasonaldata[:,1])
-except Exception:
-    seasonalsampling=False    
-
-
-# added 3/1/2024 by DNW
-# this tries to accelerate the storm catalog identification:
-try:
-    catalogstride=cardinfo["CATALOGACCELERATOR"] 
-except Exception:
-    catalogstride=1
-if isinstance(catalogstride, int):
-    if catalogstride>1:
-        print("You've decided to speed up the storm catalog identification by not examining every possibility. Good for you!")
-        
 
 
 #==============================================================================
@@ -838,7 +806,6 @@ np.random.seed(initseed)
 global rainprop   
 rainprop=deepcopy(emptyprop) 
     
-
 
 #==============================================================================
 # CREATE NEW STORM CATALOG, IF DESIRED
@@ -1157,11 +1124,13 @@ if CreateCatalog:
             temparray=np.squeeze(np.nansum(rainarray[subtimeind,:],axis=1))
             
             if domain_type=='irregular':
-
-                rainmax,ycat,xcat=RainyDay.catalogNumba_irregular(temparray,trimmask,xlen,ylen,maskheight,maskwidth,rainsum,domainmask,stride=catalogstride)
-
+                # start = time.time()
+                rainmax,ycat,xcat=RainyDay.catalogNumba_irregular(temparray,trimmask,xlen,ylen,maskheight,maskwidth,rainsum,domainmask)
+                # end = time.time()
+                # print(end - start)
+                # print(rainmax)
             else:
-                rainmax,ycat,xcat=RainyDay.catalogNumba(temparray,trimmask,xlen,ylen,maskheight,maskwidth,rainsum,stride=catalogstride)
+                rainmax,ycat,xcat=RainyDay.catalogNumba(temparray,trimmask,xlen,ylen,maskheight,maskwidth,rainsum)
                 
             minind=np.argmin(catmax)
             tempmin=catmax[minind]
@@ -1888,38 +1857,9 @@ if FreqAnalysis:
     
     
     # DOES THIS PROPERLY HANDLE STORM EXCLUSIONS???  I think so...
-    # added 2/6/2024 DBW to support seasonally-dependent sampling
-    if seasonalsampling:
-        _,_,_,_,_,_,_,_,_,cattime,_ = RainyDay.readcatalog(stormlist[0])
-        cat_doy=np.zeros((2*cattime.shape[0]),dtype='datetime64[m]')
-        
-        # convert the starting time of each storm into the same date of an arbitrary year that matches the seasonal sampling probabilities
-        for i in range(0,cattime.shape[0]):
-            cat_doy[i]=RainyDay.replace_year(cattime[i,0],1776)
-        # double up the length of the cattime series to account for the fact that end of December storms might be closer to January    
-        for i in range(cattime.shape[0],2*cattime.shape[0]):
-            cat_doy[i]=RainyDay.replace_year(cattime[i-cattime.shape[0],0],1777)
-            # convert date of storm (assumed to be the starttime of storm) into day of year, to be compared against the annual sampling CDF
-            #cat_doy[i]=(cattime[i,0] - np.datetime64(cattime[i,0].astype('datetime64[Y]'))).astype('timedelta64[D]').astype(int) + 1
-        for i in range(0,np.nanmax(ncounts)):
-            cdf_2d=seasonalcdf[:, np.newaxis]
-            cdf_2d = np.tile(cdf_2d, (1,len(ncounts[ncounts>=i+1]))) 
-            sampprob=np.random.rand(len(ncounts[ncounts>=i+1])) # why was this previously "nstorms-1"??? Bug?
-            pdiff=cdf_2d-sampprob
-            pdiff[pdiff>0.]=-999.
-            closest_day=np.argmax(pdiff,axis=0)
-            closest_date = pd.to_datetime('1776-01-01') + pd.to_timedelta(closest_day.tolist(), unit='D')
-            closest_date=closest_date.values.astype('datetime64[D]')
-            
-            # find the storm that is closest to the randomly-sampled date:
-            absolute_diff = np.abs(closest_date[:, np.newaxis] - cat_doy)
-            closest_storm = np.argmin(absolute_diff, axis=1)
-                 
-        
-    else:
-        for i in range(0,np.nanmax(ncounts)):
-            whichstorms[i,ncounts>=i+1]=np.random.randint(0,nstorms,(len(ncounts[ncounts>=i+1]))) # why was this previously "nstorms-1"??? Bug?
-        
+    for i in range(0,np.nanmax(ncounts)):
+        whichstorms[i,ncounts>=i+1]=np.random.randint(0,nstorms,(len(ncounts[ncounts>=i+1]))) # why was this previously "nstorms-1"??? Bug?
+    
     
     # the next three lines were commented out when adding the "pointlist" option
     #whichrain=np.zeros((whichstorms.shape),dtype='float32')
