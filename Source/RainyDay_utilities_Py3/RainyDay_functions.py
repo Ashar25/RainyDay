@@ -213,11 +213,10 @@ def catalogAlt_irregular(temparray,trimmask,xlen,ylen,maskheight,maskwidth,rains
 #     return rmax, wheremax[0][0], wheremax[1][0]
 
 @jit(nopython=True, fastmath =  True)  
-def catalogNumba_irregular(temparray,trimmask,xlen,ylen,maskheight,maskwidth,rainsum,domainmask,stride=1):
+def catalogNumba_irregular(temparray,trimmask,xlen,ylen,maskheight,maskwidth,rainsum,domainmask):
     rainsum[:]=0.
     halfheight=int32(np.ceil(maskheight/2))
     halfwidth=int32(np.ceil(maskwidth/2))
-<<<<<<< HEAD
     for y in range(0, ylen, 2):
         for x in range(0, xlen, 2):
         # Ensure that the slice does not exceed the bounds of temparray
@@ -234,16 +233,6 @@ def catalogNumba_irregular(temparray,trimmask,xlen,ylen,maskheight,maskwidth,rai
                 rainsum[y, x] = 0  # or np.NaN, or any other value or method appropriate for your context
                 
 
-=======
-    for i in range(0,ylen*xlen,stride):
-        y=i//xlen
-        x=i-y*xlen
-        #print x,y
-        if np.any(np.equal(domainmask[y+halfheight,x:x+maskwidth],1.)) and np.any(np.equal(domainmask[y:y+maskheight,x+halfwidth],1.)):
-            rainsum[y,x]=np.nansum(np.multiply(temparray[y:(y+maskheight),x:(x+maskwidth)],trimmask))
-        else:
-            rainsum[y,x]=0.
->>>>>>> origin/RainyDayRefctoring
     #wheremax=np.argmax(rainsum)
     rmax=np.nanmax(rainsum)
     wheremax=np.where(np.equal(rainsum,rmax))
@@ -271,9 +260,9 @@ def catalogNumba_irregular(temparray,trimmask,xlen,ylen,maskheight,maskwidth,rai
 
 
 @jit(nopython=True)
-def catalogNumba(temparray,trimmask,xlen,ylen,maskheight,maskwidth,rainsum,stride=1):
+def catalogNumba(temparray,trimmask,xlen,ylen,maskheight,maskwidth,rainsum):
     rainsum[:]=0.
-    for i in range(0,(ylen)*(xlen),stride):
+    for i in range(0,(ylen)*(xlen)):
         y=i//xlen
         x=i-y*xlen
         #print x,y
@@ -1933,40 +1922,3 @@ def find_unique_elements(list1, list2):
     #unique_elements_in_list2 = [x for x in list2 if x not in list1]
     return unique_elements_in_list1
 
-
-#==============================================================================
-# 
-#==============================================================================
-def is_monotonic(arr):
-    return np.all(np.diff(arr) >= 0) or np.all(np.diff(arr) <= 0)
-
-
-#==============================================================================
-# 
-#==============================================================================
-def day_of_year_to_datetime(year, day_of_year):
-    # Create a datetime for the first day of the given year
-    start_of_year = np.datetime64(str(year), 'Y')
-
-    # Add the number of days to get to the desired day of the year
-    result = start_of_year + np.timedelta64(day_of_year - 1, 'D')
-
-    return result
-
-#==============================================================================
-# 
-#==============================================================================
-def replace_year(dt, new_year):
-    # Extract the time part from the datetime
-    time_part = dt - np.datetime64(dt, 'Y')
-
-    # Get the current year of the datetime
-    current_year = np.datetime64(dt, 'Y')
-
-    # Calculate the difference between the current year and the new year
-    year_diff = new_year - (current_year.astype(int)+1970)
-
-    # Add the difference to the datetime
-    result = np.datetime64(dt, 'Y') + np.timedelta64(year_diff, 'Y') + time_part
-
-    return result
