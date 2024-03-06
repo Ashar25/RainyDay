@@ -1099,20 +1099,16 @@ if CreateCatalog:
     #sys.exit("set back!!!")
     #filerange=range(2759,2763)
     #print(parameterfile_json)
-    proc_start = time.time()
+    start = time.time()
     for i in filerange: 
         infile=flist[i]
-        # start = time.time()
-        inrain,intime=RainyDay.readnetcdf(infile,variables,inarea,dropvars=droplist)
-        # end = time.time()
-        # print("readnetcdf time:", end-start)
+        inrain,intime,_,_=RainyDay.readnetcdf(infile,variables,inarea,dropvars=droplist)
         #inrain=inrain[hourinclude,:]
         #intime=intime[hourinclude]
-        # inrain[inrain<0.]=np.nan
-        inrain = inrain.where(inrain >= 0, np.nan)
+        inrain[inrain<0.]=np.nan
         
         print('Processing file '+str(i+1)+' out of '+str(len(flist))+' ('+"{0:0.0f}".format(100*(i+1)/len(flist))+'%): '+infile.split('/')[-1])
-        # start = time.time()
+
         # THIS FIRST PART BUILDS THE STORM CATALOG
         for k in np.arange(0,len(intime)):     
             starttime=intime[k]-np.timedelta64(int(catduration*60.),'m')
@@ -1124,11 +1120,7 @@ if CreateCatalog:
             temparray=np.squeeze(np.nansum(rainarray[subtimeind,:],axis=1))
             
             if domain_type=='irregular':
-                # start = time.time()
                 rainmax,ycat,xcat=RainyDay.catalogNumba_irregular(temparray,trimmask,xlen,ylen,maskheight,maskwidth,rainsum,domainmask)
-                # end = time.time()
-                # print(end - start)
-                # print(rainmax)
             else:
                 rainmax,ycat,xcat=RainyDay.catalogNumba(temparray,trimmask,xlen,ylen,maskheight,maskwidth,rainsum)
                 
@@ -1152,10 +1144,8 @@ if CreateCatalog:
             
             rainarray[0:-1,:]=rainarray[1:int(catduration*60/rainprop.timeres),:]
             raintime[0:-1]=raintime[1:int(catduration*60/rainprop.timeres)] 
-        # end = time.time()
-        # print('overall time:', end-start)
     proc_end = time.time()
-    print(f"catalog timer: {(proc_end-proc_start)/60.:0.2f} minutes")
+    print(f"catalog timer: {(proc_end-start)/60.:0.2f} minutes")
 #%%
     if np.count_nonzero(catmax) < nstorms:
         zero_ind = np.where(catmax ==0)[0][0]
@@ -1174,7 +1164,7 @@ if CreateCatalog:
     os.mkdir(fullpath + '/StormCatalog')
     
     # This part saves each storm as single file #
-    _,readtime = RainyDay.readnetcdf(flist[0],variables,inarea,dropvars=droplist)
+    _,readtime,_,_ = RainyDay.readnetcdf(flist[0],variables,inarea,dropvars=droplist)
     print("Writing Storm Catalog!")
     for i in range(nstorms):
         start_time = cattime[i,0]
@@ -1200,7 +1190,7 @@ if CreateCatalog:
                     if current_date.replace("-","") == match.group().replace("-","").replace("/",""):
                         stm_file = file
                         break
-                stm_rain,stm_time = RainyDay.readnetcdf(stm_file,variables,inbounds=inarea,dropvars=droplist)
+                stm_rain,stm_time,_,_ = RainyDay.readnetcdf(stm_file,variables,inbounds=inarea,dropvars=droplist)
             cind = np.where(stm_time == current_datetime)[0][0]
             catrain[k,:] = stm_rain[cind,:]
             current_datetime += rainprop.timeres 
@@ -1226,7 +1216,7 @@ if CreateCatalog:
                                                   storm_name,catmask,parameterfile,domainmask,\
                                                      nstorms,catduration,storm_num=int(i),timeresolution=rainprop.timeres)
     end = time.time()   
-    print(f"catalog timer: {(end-proc_start)/60.:0.2f} minutes")
+    print(f"catalog timer: {(end-start)/60.:0.2f} minutes")
 
     stormlist = glob.glob(fullpath+'/StormCatalog/'+catalogname + '*' + '.nc')
     stormlist = sorted(stormlist, key=lambda path: RainyDay.extract_storm_number(path, catalogname))
@@ -1749,7 +1739,7 @@ if DoDiagnostics:
     ax=plt.axes(projection=proj)
     #ax.set_extent(outerextent)
     if areatype.lower()=="basin" and os.path.isfile(wsmaskshp):
-        ax.add_feature(wmap_feature,edgecolor="black", facecolor='none')
+        ax.add_feature(wmap_feature,edgecolor="red", facecolor='none')
     elif areatype.lower()=="box" or areatype.lower()=="point":
         ax.add_geometries([ring], facecolor='none',edgecolor='red',crs=ccrs.PlateCarree())
         
